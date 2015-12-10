@@ -9,6 +9,7 @@ import android.graphics.RectF;
 import android.os.Bundle;
 import android.os.Parcelable;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.View;
 
 import static com.daimajia.numberprogressbar.NumberProgressBar.ProgressTextVisibility.Invisible;
@@ -18,6 +19,19 @@ import static com.daimajia.numberprogressbar.NumberProgressBar.ProgressTextVisib
  * Created by daimajia on 14-4-30.
  */
 public class NumberProgressBar extends View {
+
+    /**
+     * 自定义控件的基本思路：
+     * 1.思考自定义控件采用哪种实现方式：继承View，对现有控件进行扩展，通过组合的方式实现
+     * 2.在res目录下的values文件夹下新建attrs.xml属性定义文件
+     * 3.通过context.obtainStyledAttributes()方法获取上一步定义的自定义属性
+     * 4.重写onMeasure()方法，设置自定义View的长和宽
+     * 5.重写onDraw()方法，根据需求绘制View
+     * 6.改变了控件的属性时，需要调用invalidate()方法（UI线程）或postInvalidate()方法(非UI线程)来重绘View（通过回调onDraw（）方法实现）
+     * 7.TODO onLayout()方法
+     */
+
+    private static final String TAG = "NumberProgressBar";
 
     private int mMaxProgress = 100;
 
@@ -200,16 +214,29 @@ public class NumberProgressBar extends View {
         initializePainters();
     }
 
+    /**
+     * 设置最小的宽度
+     * @return
+     */
     @Override
     protected int getSuggestedMinimumWidth() {
         return (int) mTextSize;
     }
 
+    /**
+     * 设置最小的高度
+     * @return
+     */
     @Override
     protected int getSuggestedMinimumHeight() {
         return Math.max((int) mTextSize, Math.max((int) mReachedBarHeight, (int) mUnreachedBarHeight));
     }
 
+    /**
+     * 自定义View的关键步骤之一，其他的还有onLayout() onDraw()
+     * @param widthMeasureSpec
+     * @param heightMeasureSpec
+     */
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         setMeasuredDimension(measure(widthMeasureSpec, true), measure(heightMeasureSpec, false));
@@ -268,17 +295,35 @@ public class NumberProgressBar extends View {
         mTextPaint.setTextSize(mTextSize);
     }
 
-
+    /**
+     * 在Android中，坐标系统是以左上角为原点的，竖直向下为y轴正方向，水平向右为x轴正方向。
+     * 这里的reachRectF和unReachRectF的四个顶点是相对于父View的，也就是NumberProgressBar
+     *
+     * getLeft(),getRight,getTop(),getBottom()是相对于父View的，具体如下方法所示
+     *
+     * Left position of this view relative to its parent.
+     *
+     * @return The left edge of this view, in pixels.
+     *
+     * @ViewDebug.CapturedViewProperty
+     * public final int getLeft() {
+     * return mLeft;
+     * }
+     *可参考:http://blog.csdn.net/wangjinyu501/article/details/21827341
+     */
     private void calculateDrawRectFWithoutProgressText() {
         mReachedRectF.left = getPaddingLeft();
         mReachedRectF.top = getHeight() / 2.0f - mReachedBarHeight / 2.0f;
-        mReachedRectF.right = (getWidth() - getPaddingLeft() - getPaddingRight()) / (getMax() * 1.0f) * getProgress() + getPaddingLeft();
+        mReachedRectF.right = (getWidth() - getPaddingLeft() - getPaddingRight()) * getProgress()/ (getMax() * 1.0f)  + getPaddingLeft();
         mReachedRectF.bottom = getHeight() / 2.0f + mReachedBarHeight / 2.0f;
 
         mUnreachedRectF.left = mReachedRectF.right;
         mUnreachedRectF.right = getWidth() - getPaddingRight();
         mUnreachedRectF.top = getHeight() / 2.0f + -mUnreachedBarHeight / 2.0f;
         mUnreachedRectF.bottom = getHeight() / 2.0f + mUnreachedBarHeight / 2.0f;
+
+        Log.wtf(TAG, "reached: left" + mReachedRectF.left + " right:" + mReachedRectF.right + " top:" + mReachedRectF.top + " bottom:" + mReachedRectF.bottom +
+                "unreached left:" + mUnreachedRectF.left + " right:" + mUnreachedRectF.right + " top:" + mUnreachedRectF.top + " bottom:" + mUnreachedRectF.bottom);
     }
 
     private void calculateDrawRectF() {
@@ -316,7 +361,12 @@ public class NumberProgressBar extends View {
             mUnreachedRectF.top = getHeight() / 2.0f + -mUnreachedBarHeight / 2.0f;
             mUnreachedRectF.bottom = getHeight() / 2.0f + mUnreachedBarHeight / 2.0f;
         }
+        Log.wtf(TAG,"reached: left"+mReachedRectF.left+" right:"+mReachedRectF.right+" top:"+mReachedRectF.top+" bottom:"+mReachedRectF.bottom+
+                "unreached left:"+mUnreachedRectF.left+" right:"+mUnreachedRectF.right+" top:"+mUnreachedRectF.top+" bottom:"+mUnreachedRectF.bottom);
+
     }
+
+    //NumberProgressBar的属性的Get和Set方法
 
     /**
      * Get progress text color.
@@ -440,6 +490,11 @@ public class NumberProgressBar extends View {
         }
     }
 
+    /**
+     * 保存View的实例
+     * 参考http://stackoverflow.com/questions/3542333/how-to-prevent-custom-views-from-losing-state-across-screen-orientation-changes
+     * @return
+     */
     @Override
     protected Parcelable onSaveInstanceState() {
         final Bundle bundle = new Bundle();
@@ -458,6 +513,10 @@ public class NumberProgressBar extends View {
         return bundle;
     }
 
+    /**
+     * 还原View的状态
+     * @param state
+     */
     @Override
     protected void onRestoreInstanceState(Parcelable state) {
         if (state instanceof Bundle) {
@@ -468,7 +527,9 @@ public class NumberProgressBar extends View {
             mUnreachedBarHeight = bundle.getFloat(INSTANCE_UNREACHED_BAR_HEIGHT);
             mReachedBarColor = bundle.getInt(INSTANCE_REACHED_BAR_COLOR);
             mUnreachedBarColor = bundle.getInt(INSTANCE_UNREACHED_BAR_COLOR);
+            //初始化画笔
             initializePainters();
+            //还原之前保存的View实例
             setMax(bundle.getInt(INSTANCE_MAX));
             setProgress(bundle.getInt(INSTANCE_PROGRESS));
             setPrefix(bundle.getString(INSTANCE_PREFIX));
@@ -480,11 +541,21 @@ public class NumberProgressBar extends View {
         super.onRestoreInstanceState(state);
     }
 
+    /**
+     * dp转px
+     * @param dp
+     * @return
+     */
     public float dp2px(float dp) {
         final float scale = getResources().getDisplayMetrics().density;
         return dp * scale + 0.5f;
     }
 
+    /**
+     * sp转px
+     * @param sp
+     * @return
+     */
     public float sp2px(float sp) {
         final float scale = getResources().getDisplayMetrics().scaledDensity;
         return sp * scale;

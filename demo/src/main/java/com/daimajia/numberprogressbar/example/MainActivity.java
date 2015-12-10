@@ -81,6 +81,8 @@ public class MainActivity extends ActionBarActivity implements OnProgressBarList
     }
 
     private void startNPB() {
+        if(timerTask!=null)
+            return;
         runTimer();
     }
 
